@@ -10,9 +10,8 @@ import sys
 import multiprocessing.shared_memory as shm
 
 
-
 # ==============================
-# 🔷 修复核心：FCB.from_bytes 中 data 作用域错误
+# 🔷 文件控制块（保持不变）
 # ==============================
 class FCB:
     def __init__(self, name: str, size: int = 0, start_block: int = -1):
@@ -84,11 +83,9 @@ class FCB:
 
 
 # ==============================
-# 📡 共享内存接口（保留，供 import）
+# 📡 共享内存接口（保留）
 # ==============================
 class SharedMemoryInterface:
-    """供其他模块 import 使用的共享内存接口"""
-
     def __init__(self, name: str = "fat_cmd", size: int = 65536):
         self.name = name
         self.size = size
@@ -141,7 +138,7 @@ class SharedMemoryInterface:
 
 
 # ==============================
-# 🧱 核心模块（完全保留）
+# 🧱 磁盘管理器（保持不变）
 # ==============================
 class DiskManager:
     def __init__(self, disk_path: str, block_size: int = 64, block_count: int = 1024):
@@ -164,14 +161,14 @@ class DiskManager:
 
     def read_block(self, block_index: int) -> bytes:
         if block_index < 0 or block_index >= self.block_count:
-            raise ValueError(f"无效的块索引: {block_index}, 有效范围: 0-{self.block_count - 1}")
+            raise ValueError(f"无效的块索引: {block_index}")
         start = block_index * self.block_size
         end = start + self.block_size
         return self.mmap[start:end]
 
     def write_block(self, block_index: int, data: bytes):
         if block_index < 0 or block_index >= self.block_count:
-            raise ValueError(f"无效的块索引: {block_index}, 有效范围: 0-{self.block_count - 1}")
+            raise ValueError(f"无效的块索引: {block_index}")
         if len(data) > self.block_size:
             data = data[:self.block_size]
         elif len(data) < self.block_size:
@@ -188,6 +185,9 @@ class DiskManager:
             pass
 
 
+# ==============================
+# FAT管理器（保持不变）
+# ==============================
 class FATManager:
     def __init__(self, disk: DiskManager, fat_start_block: int = 1, fat_blocks: int = 16):
         self.disk = disk
@@ -216,7 +216,7 @@ class FATManager:
 
     def _read_fat_entry(self, entry_index: int) -> int:
         if entry_index < 0 or entry_index >= self.total_fat_entries:
-            raise ValueError(f"FAT项索引 {entry_index} 超出范围 0-{self.total_fat_entries - 1}")
+            raise ValueError(f"FAT项索引 {entry_index} 超出范围")
         block_offset = entry_index // self.fat_entries_per_block
         entry_offset = (entry_index % self.fat_entries_per_block) * 4
         block_data = self.disk.read_block(self.fat_start_block + block_offset)
@@ -224,7 +224,7 @@ class FATManager:
 
     def _write_fat_entry(self, entry_index: int, value: int):
         if entry_index < 0 or entry_index >= self.total_fat_entries:
-            raise ValueError(f"FAT项索引 {entry_index} 超出范围 0-{self.total_fat_entries - 1}")
+            raise ValueError(f"FAT项索引 {entry_index} 超出范围")
         block_offset = entry_index // self.fat_entries_per_block
         entry_offset = (entry_index % self.fat_entries_per_block) * 4
         block_data = bytearray(self.disk.read_block(self.fat_start_block + block_offset))
@@ -255,7 +255,7 @@ class FATManager:
 
     def get_file_blocks(self, start_block: int) -> List[int]:
         if start_block < 0 or start_block >= self.total_fat_entries:
-            raise ValueError(f"起始块 {start_block} 超出FAT表管理范围")
+            raise ValueError(f"起始块 {start_block} 超出范围")
         blocks = []
         current = start_block
         while current != 0xFFFFFFFF and current != 0xFFFFFFFE and current != -1:
@@ -271,6 +271,9 @@ class FATManager:
         return blocks
 
 
+# ==============================
+# 目录管理器（保持不变）
+# ==============================
 class DirectoryManager:
     def __init__(self, disk: DiskManager, dir_start_block: int = 17, dir_blocks: int = 16, dir_mode: str = 'single'):
         self.disk = disk
@@ -348,10 +351,20 @@ class DirectoryManager:
         return False
 
 
+# ==============================
+# 🎯 文件系统（集成缓冲 - 最小改动）
+# ==============================
 class FileSystem:
-    """FAT 文件系统核心（线程安全占位）"""
+    """FAT 文件系统核心"""
 
     def __init__(self, disk_path: str = 'simulated_disk.img', dir_mode: str = 'single'):
+        # 🔧 动态导入缓冲模块（避免循环依赖）
+        try:
+            from buffer import BufferManager
+            self._buffer_available = True
+        except ImportError:
+            self._buffer_available = False
+        
         assert dir_mode in ('single', 'multi'), "dir_mode must be 'single' or 'multi'"
         self.BLOCK_SIZE = 64
         self.TOTAL_BLOCKS = 1024
@@ -368,9 +381,13 @@ class FileSystem:
         self.directory = DirectoryManager(self.disk, dir_start_block, self.DIR_BLOCKS, dir_mode=dir_mode)
         self.data_start_block = data_start_block
 
-        # 🔐 线程锁占位（由第 4 部分同学初始化）
-        self._lock = threading.RLock()
+        # 🆕 初始化缓冲管理器（如果可用）
+        if self._buffer_available:
+            self.buffer = BufferManager(self.disk, capacity=8)
+        else:
+            self.buffer = None
 
+        self._lock = threading.RLock()
         self._mark_system_blocks_as_used()
 
     def _mark_system_blocks_as_used(self):
@@ -405,7 +422,14 @@ class FileSystem:
         remaining = content
         while remaining:
             write_size = min(len(remaining), self.disk.block_size)
-            self.disk.write_block(current_block, remaining[:write_size])
+            chunk = remaining[:write_size]
+            
+            # 🆕 使用缓冲（如果可用）
+            if self.buffer:
+                self.buffer.write_page(current_block, chunk)
+            else:
+                self.disk.write_block(current_block, chunk)
+            
             remaining = remaining[write_size:]
             if remaining:
                 next_block = self.fat.allocate_block()
@@ -419,16 +443,26 @@ class FileSystem:
         fcb = self.directory.find_file(filename)
         blocks = self.fat.get_file_blocks(fcb.start_block)
         if block_index >= len(blocks):
-            raise IndexError(f"文件 {filename} 只有 {len(blocks)} 块，无法读取第 {block_index} 块")
-        return self.disk.read_block(blocks[block_index])
+            raise IndexError(f"块索引越界")
+        
+        # 🆕 使用缓冲（如果可用）
+        if self.buffer:
+            return self.buffer.read_page(blocks[block_index])
+        else:
+            return self.disk.read_block(blocks[block_index])
 
     def write_file_block(self, filename: str, block_index: int, data: bytes):
-        with self._lock:  # ✅ 仅此处加锁（写块级操作）
+        with self._lock:
             fcb = self.directory.find_file(filename)
             blocks = self.fat.get_file_blocks(fcb.start_block)
             if block_index >= len(blocks):
-                raise IndexError(f"文件 {filename} 只有 {len(blocks)} 块")
-            self.disk.write_block(blocks[block_index], data)
+                raise IndexError(f"块索引越界")
+            
+            # 🆕 使用缓冲（如果可用）
+            if self.buffer:
+                self.buffer.write_page(blocks[block_index], data)
+            else:
+                self.disk.write_block(blocks[block_index], data)
 
     def get_file_blocks(self, filename: str) -> List[int]:
         fcb = self.directory.find_file(filename)
@@ -440,8 +474,14 @@ class FileSystem:
             return None
         content = bytearray()
         blocks = self.fat.get_file_blocks(fcb.start_block)
+        
         for block_idx in blocks:
-            content.extend(self.disk.read_block(block_idx))
+            # 🆕 使用缓冲
+            if self.buffer:
+                content.extend(self.buffer.read_page(block_idx))
+            else:
+                content.extend(self.disk.read_block(block_idx))
+        
         return bytes(content[:fcb.size])
 
     def delete_file(self, filename: str) -> bool:
@@ -449,8 +489,13 @@ class FileSystem:
         if not fcb:
             return False
         blocks = self.fat.get_file_blocks(fcb.start_block)
+        
         for block in blocks:
+            # 🆕 使缓冲失效
+            if self.buffer:
+                self.buffer.invalidate(block)
             self.fat.free_block(block)
+        
         return self.directory.remove_file(filename)
 
     def get_free_blocks(self) -> List[int]:
@@ -461,7 +506,8 @@ class FileSystem:
         unmanaged = max(0, self.disk.block_count - self.fat.total_fat_entries)
         free = len(self.get_free_blocks())
         used = total_managed - free - 2
-        return {
+        
+        result = {
             'total_blocks': self.disk.block_count,
             'managed_blocks': total_managed,
             'unmanaged_blocks': unmanaged,
@@ -472,7 +518,17 @@ class FileSystem:
             'files_count': len(self.directory.list_files()),
             'fat_blocks': self.fat.fat_blocks,
             'dir_blocks': self.directory.dir_blocks,
-            'data_blocks': self.disk.block_count - (1 + self.fat.fat_blocks + self.directory.dir_blocks)
+            'data_blocks': self.disk.block_count - (1 + self.fat.fat_blocks + self.directory.dir_blocks),
         }
-
-
+        
+        # 🆕 添加缓冲状态（如果可用）
+        if self.buffer:
+            result['buffer_status'] = self.buffer.get_status()
+        
+        return result
+    
+    def shutdown(self):
+        """🆕 安全关闭"""
+        if self.buffer:
+            self.buffer.flush_all()
+        self.disk.close()

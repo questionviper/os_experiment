@@ -2,6 +2,13 @@ from disk import FileSystem
 from tkinter import *
 from tkinter import ttk, scrolledtext
 from tkinter.font import Font
+
+
+try:
+    from buffer.buffer_visualizer import BufferVisualizer
+    BUFFER_AVAILABLE = True
+except ImportError:
+    BUFFER_AVAILABLE = False
 # ==============================
 # 🖼️ 极简 UI（仅调试：系统概览 + 磁盘可视化）
 # ==============================
@@ -11,6 +18,10 @@ class FATFileSystemSimulator:
         self.root.title("FAT文件系统模拟器 - Debug View")
         self.root.geometry("1000x700")
         self.root.configure(bg='#2c3e50')
+
+        # new 🔧 先初始化文件系统（在创建UI之前！）
+        self.filesystem = FileSystem('simulated_disk.img', dir_mode='single')
+
 
         notebook = ttk.Notebook(self.root)
         notebook.pack(fill=BOTH, expand=True, padx=5, pady=5)
@@ -27,8 +38,17 @@ class FATFileSystemSimulator:
         notebook.add(disk_frame, text="磁盘可视化")
         self.create_disk_tab(disk_frame)
 
-        self.filesystem = FileSystem('simulated_disk.img', dir_mode='single')
+        # 🆕 内存缓冲监控页（如果缓冲模块可用）
+        if BUFFER_AVAILABLE:
+            buffer_frame = ttk.Frame(notebook)
+            notebook.add(buffer_frame, text="内存缓冲")
+            self.create_buffer_tab(buffer_frame)
+        
+        # 绑定关闭事件
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
         self.refresh_all_views()
+        self.auto_refresh()
 
     def create_system_tab(self, parent):
         title_font = Font(family='Arial', size=14, weight='bold')
@@ -105,6 +125,29 @@ class FATFileSystemSimulator:
         self.block_canvas.pack(fill=BOTH, expand=True)
         self.block_canvas.bind('<Configure>', self.on_canvas_resize)
 
+    #new
+    def create_buffer_tab(self, parent):
+        """🆕 内存缓冲监控页（使用可复用组件）"""
+        # 标题
+        title_frame = Frame(parent, bg='#34495e')
+        title_frame.pack(fill=X, pady=10)
+        
+        Label(title_frame, text="🧠 内存缓冲池监控", 
+              bg='#34495e', fg='white', font=('Arial', 14, 'bold')).pack()
+        Label(title_frame, text="实时显示缓冲池状态 | 绿色=干净页 | 红色=脏页 | LRU置换算法", 
+              bg='#34495e', fg='#95a5a6', font=('Arial', 9)).pack()
+        
+        # 使用可视化组件
+        viz_frame = Frame(parent, bg='#2c3e50', relief=RIDGE, borderwidth=2)
+        viz_frame.pack(fill=BOTH, expand=True, padx=20, pady=10)
+        
+        # 🔧 检查filesystem.buffer是否存在
+        if hasattr(self.filesystem, 'buffer') and self.filesystem.buffer:
+            self.buffer_visualizer = BufferVisualizer(viz_frame, self.filesystem.buffer, page_count=8)
+        else:
+            Label(viz_frame, text="⚠️ 缓冲模块未加载\n请确保buffer/目录存在", 
+                  bg='#2c3e50', fg='#f39c12', font=('Arial', 12)).pack(pady=50)
+
     def on_canvas_resize(self, event=None):
         self.update_disk_visualization()
 
@@ -112,6 +155,8 @@ class FATFileSystemSimulator:
         self.update_system_info()
         self.update_file_tree()
         self.update_disk_visualization()
+        if BUFFER_AVAILABLE and hasattr(self, 'buffer_visualizer'):
+            self.buffer_visualizer.update()
 
     def update_system_info(self):
         info = self.filesystem.get_system_info()
@@ -129,6 +174,19 @@ class FATFileSystemSimulator:
     空闲块: {info['free_blocks']}
     已用数据块: {info['used_blocks']}
     文件数量: {info['files_count']}
+"""
+#new
+
+        # 🆕 添加缓冲信息
+        if 'buffer_status' in info:
+            buf = info['buffer_status']
+            stats = buf.get('statistics', {})
+            info_text += f"""
+🆕 内存缓冲:
+    容量: {buf.get('capacity', 0)} 页
+    使用: {buf.get('used', 0)} 页
+    命中率: {stats.get('hit_ratio', '0%')}
+    淘汰次数: {stats.get('evict', 0)}
 """
         self.info_text.config(state=NORMAL)
         self.info_text.delete(1.0, END)
@@ -213,6 +271,16 @@ class FATFileSystemSimulator:
             x2, y2 = x1 + bw, y1 + bh
             color = color_map.get(status[idx], '#95a5a6')
             canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline='#34495e', width=1)
+    # buffer
+    def auto_refresh(self):
+        """自动刷新"""
+        self.refresh_all_views()
+        self.root.after(1500, self.auto_refresh)
+    #buffer
+    def on_closing(self):
+        """窗口关闭"""
+        self.filesystem.shutdown()
+        self.root.destroy()
 
 if __name__ == "__main__":
     root = Tk()
