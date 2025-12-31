@@ -1,0 +1,66 @@
+2025-12-30 23:07:44,200 [INFO] FileSystem: ✨ 创建磁盘镜像: os_course_disk.img
+2025-12-30 23:07:44,202 [INFO] FileSystem: ✅ 超级块初始化完成(块#0)
+2025-12-30 23:07:44,202 [INFO] FileSystem: 🚀 内存映射(mmap)建立成功
+2025-12-30 23:07:44,202 [INFO] FileSystem: 💾 磁盘管理器初始化: os_course_disk.img [1024块]
+2025-12-30 23:07:44,253 [INFO] FileSystem: 初始化FAT表...
+2025-12-30 23:07:44,254 [INFO] FileSystem: FAT表初始化完成
+2025-12-30 23:07:44,254 [INFO] FileSystem: FAT表管理器初始化完成
+2025-12-30 23:07:44,254 [INFO] FileSystem: 目录管理器初始化完成
+2025-12-30 23:07:44,558 [INFO] FileSystem: 系统块已标记
+2025-12-30 23:08:50,936 [INFO] FileSystem: ✅ 磁盘管理器已关闭
+2025-12-30 23:08:56,912 [INFO] FileSystem: 🚀 内存映射(mmap)建立成功
+2025-12-30 23:08:56,912 [INFO] FileSystem: 💾 磁盘管理器初始化: os_course_disk.img [1024块]
+2025-12-30 23:08:56,963 [INFO] FileSystem: 初始化FAT表...
+2025-12-30 23:08:56,964 [INFO] FileSystem: FAT表初始化完成
+2025-12-30 23:08:56,964 [INFO] FileSystem: FAT表管理器初始化完成
+2025-12-30 23:08:56,964 [INFO] FileSystem: 目录管理器初始化完成
+2025-12-30 23:08:57,267 [INFO] FileSystem: 系统块已标记
+2025-12-30 23:09:34,804 [INFO] FileSystem: ✅ 磁盘管理器已关闭
+2025-12-30 23:11:36,666 [INFO] FileSystem: 🚀 内存映射(mmap)建立成功
+2025-12-30 23:11:36,666 [INFO] FileSystem: 💾 磁盘管理器初始化: os_course_disk.img [1024块]
+2025-12-30 23:11:36,668 [INFO] FileSystem: 初始化FAT表...
+2025-12-30 23:11:36,668 [INFO] FileSystem: FAT表初始化完成
+2025-12-30 23:11:36,668 [INFO] FileSystem: FAT表管理器初始化完成
+2025-12-30 23:11:36,668 [INFO] FileSystem: 目录管理器初始化完成
+2025-12-30 23:11:36,678 [INFO] FileSystem: 系统块已标记
+2025-12-30 23:12:26,374 [INFO] FileSystem: ✅ 磁盘管理器已关闭
+2025-12-30 23:12:28,761 [INFO] FileSystem: 🚀 内存映射(mmap)建立成功
+2025-12-30 23:12:28,761 [INFO] FileSystem: 💾 磁盘管理器初始化: os_course_disk.img [1024块]
+2025-12-30 23:12:28,763 [INFO] FileSystem: 初始化FAT表...
+2025-12-30 23:12:28,763 [INFO] FileSystem: FAT表初始化完成
+2025-12-30 23:12:28,763 [INFO] FileSystem: FAT表管理器初始化完成
+2025-12-30 23:12:28,763 [INFO] FileSystem: 目录管理器初始化完成
+2025-12-30 23:12:28,773 [INFO] FileSystem: 系统块已标记
+2025-12-30 23:15:15,578 [INFO] FileSystem: ✅ 磁盘管理器已关闭
+2025-12-30 23:15:31,851 [INFO] FileSystem: 🚀 内存映射(mmap)建立成功
+2025-12-30 23:15:31,851 [INFO] FileSystem: 💾 磁盘管理器初始化: os_course_disk.img [1024块]
+2025-12-30 23:15:31,852 [INFO] FileSystem: 初始化FAT表...
+2025-12-30 23:15:31,852 [INFO] FileSystem: FAT表初始化完成
+2025-12-30 23:15:31,852 [INFO] FileSystem: FAT表管理器初始化完成
+2025-12-30 23:15:31,852 [INFO] FileSystem: 目录管理器初始化完成
+2025-12-30 23:15:31,862 [INFO] FileSystem: 系统块已标记
+2025-12-30 23:21:55,084 [INFO] FileSystem: ✅ 磁盘管理器已关闭
+2025-12-30 23:22:03,460 [INFO] FileSystem: 🚀 内存映射(mmap)建立成功
+2025-12-30 23:22:03,460 [INFO] FileSystem: 💾 磁盘管理器初始化: os_course_disk.img [1024块]
+2025-12-30 23:22:03,465 [INFO] FileSystem: 初始化FAT表...
+2025-12-30 23:22:03,466 [INFO] FileSystem: FAT表初始化完成
+2025-12-30 23:22:03,466 [INFO] FileSystem: FAT表管理器初始化完成
+2025-12-30 23:22:03,466 [INFO] FileSystem: 目录管理器初始化完成
+2025-12-30 23:22:03,475 [INFO] FileSystem: 系统块已标记
+2025-12-30 23:22:42,700 [INFO] FileSystem: ✅ 磁盘管理器已关闭
+2025-12-30 23:56:16,684 [INFO] FileSystem: 🚀 内存映射(mmap)建立成功
+2025-12-30 23:56:16,684 [INFO] FileSystem: 💾 磁盘管理器初始化: os_course_disk.img [1024块]
+2025-12-30 23:56:16,686 [INFO] FileSystem: 初始化FAT表...
+2025-12-30 23:56:16,691 [INFO] FileSystem: FAT表初始化完成
+2025-12-30 23:56:16,691 [INFO] FileSystem: FAT表管理器初始化完成
+2025-12-30 23:56:16,691 [INFO] FileSystem: 目录管理器初始化完成
+2025-12-30 23:56:16,701 [INFO] FileSystem: 系统块已标记
+2025-12-30 23:56:59,084 [INFO] FileSystem: ✅ 磁盘管理器已关闭
+2025-12-30 23:57:01,689 [INFO] FileSystem: 🚀 内存映射(mmap)建立成功
+2025-12-30 23:57:01,689 [INFO] FileSystem: 💾 磁盘管理器初始化: os_course_disk.img [1024块]
+2025-12-30 23:57:01,694 [INFO] FileSystem: 初始化FAT表...
+2025-12-30 23:57:01,698 [INFO] FileSystem: FAT表初始化完成
+2025-12-30 23:57:01,698 [INFO] FileSystem: FAT表管理器初始化完成
+2025-12-30 23:57:01,699 [INFO] FileSystem: 目录管理器初始化完成
+2025-12-30 23:57:01,708 [INFO] FileSystem: 系统块已标记
+2025-12-30 23:57:18,110 [INFO] FileSystem: ✅ 磁盘管理器已关闭

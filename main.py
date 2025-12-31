@@ -1,288 +1,417 @@
-from disk import FileSystem
 from tkinter import *
-from tkinter import ttk, scrolledtext
-from tkinter.font import Font
-
-
+from tkinter import ttk, scrolledtext, messagebox, simpledialog
+import threading
+import time
+from disk import FileSystem
+from config import SystemConfig
+from process import CommandTask
 try:
     from buffer.buffer_visualizer import BufferVisualizer
     BUFFER_AVAILABLE = True
-except ImportError:
+except:
     BUFFER_AVAILABLE = False
-# ==============================
-# 🖼️ 极简 UI（仅调试：系统概览 + 磁盘可视化）
-# ==============================
-class FATFileSystemSimulator:
+
+class OSCourseDesignGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("FAT文件系统模拟器 - Debug View")
-        self.root.geometry("1000x700")
-        self.root.configure(bg='#2c3e50')
-
-        # new 🔧 先初始化文件系统（在创建UI之前！）
-        self.filesystem = FileSystem('simulated_disk.img', dir_mode='single')
-
-
-        notebook = ttk.Notebook(self.root)
-        notebook.pack(fill=BOTH, expand=True, padx=5, pady=5)
-
-        system_frame = ttk.Frame(notebook)
-        notebook.add(system_frame, text="系统概览")
-        self.create_system_tab(system_frame)
-
-        file_frame = ttk.Frame(notebook)
-        notebook.add(file_frame, text="目录结构")
-        self.create_file_tab(file_frame)
-
-        disk_frame = ttk.Frame(notebook)
-        notebook.add(disk_frame, text="磁盘可视化")
-        self.create_disk_tab(disk_frame)
-
-        # 🆕 内存缓冲监控页（如果缓冲模块可用）
-        if BUFFER_AVAILABLE:
-            buffer_frame = ttk.Frame(notebook)
-            notebook.add(buffer_frame, text="内存缓冲")
-            self.create_buffer_tab(buffer_frame)
+        self.root.title("操作系统课程设计 - FAT文件系统 (完全增强版)")
+        self.root.geometry("1400x900")
+        self.bg_color = '#1e1e2e'
+        self.root.configure(bg=self.bg_color)
         
-        # 绑定关闭事件
+        # 初始化文件系统
+        self.filesystem = FileSystem('os_course_disk.img')
+        
+        self.current_path = "/" # 当前路径
+        
+        self.create_header()
+        self.create_tabs()
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-        
-        self.refresh_all_views()
         self.auto_refresh()
 
-    def create_system_tab(self, parent):
-        title_font = Font(family='Arial', size=14, weight='bold')
-        Label(parent, text="系统信息", font=title_font,
-              bg='#34495e', fg='white').pack(pady=8)
+    def create_header(self):
+        header = Frame(self.root, bg='#313244', height=80)
+        header.pack(fill=X)
+        header.pack_propagate(False)
+        
+        title_f = Frame(header, bg='#313244')
+        title_f.pack(side=LEFT, padx=20)
+        Label(title_f, text="🖥️ 操作系统课程设计 - FAT文件系统", 
+              font=('Microsoft YaHei', 18, 'bold'), bg='#313244', fg='#89b4fa').pack(anchor=W)
+        
+        self.stat_labels = {}
+        for l, c in [("💾 磁盘使用", "#89b4fa"), ("📁 根目录文件", "#a6e3a1"), ("🧠 命中率", "#f9e2af")]:
+            f = Frame(header, bg='#313244')
+            f.pack(side=RIGHT, padx=15)
+            val = Label(f, text="0", bg='#313244', fg=c, font=('Arial', 14, 'bold'))
+            val.pack()
+            Label(f, text=l, bg='#313244', fg='#a6adc8').pack()
+            self.stat_labels[l] = val
 
-        info_frame = LabelFrame(parent, text="详情", bg='#34495e', fg='white')
-        info_frame.pack(fill=BOTH, expand=True, padx=15, pady=8)
-
-        self.info_text = scrolledtext.ScrolledText(
-            info_frame, bg='#2c3e50', fg='white',
-            font=('Courier', 10), wrap=WORD
-        )
-        self.info_text.pack(fill=BOTH, expand=True, padx=8, pady=8)
-        self.info_text.config(state=DISABLED)
-
-        Button(parent, text="🔄 刷新", command=self.refresh_all_views,
-               bg='#3498db', fg='white').pack(pady=10)
+    def create_tabs(self):
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        
+        tab_f = Frame(self.notebook, bg=self.bg_color)
+        self.notebook.add(tab_f, text=" 📂 文件管理 ")
+        self.create_file_tab(tab_f)
+        
+        tab_d = Frame(self.notebook, bg=self.bg_color)
+        self.notebook.add(tab_d, text=" 💾 磁盘可视化 ")
+        self.create_disk_tab(tab_d)
+        
+        tab_b = Frame(self.notebook, bg=self.bg_color)
+        self.notebook.add(tab_b, text=" 🧠 内存缓冲 ")
+        self.create_buffer_tab(tab_b)
+        
+        tab_m = Frame(self.notebook, bg=self.bg_color)
+        self.notebook.add(tab_m, text=" 📊 系统监控 ")
+        self.create_monitor_tab(tab_m)
 
     def create_file_tab(self, parent):
-        mode_frame = Frame(parent, bg='#34495e')
-        mode_frame.pack(pady=5)
-        Label(mode_frame, text="目录模式:", bg='#34495e', fg='white').pack(side=LEFT)
-        self.dir_mode_var = StringVar(value='single')
-        Radiobutton(mode_frame, text="单级", variable=self.dir_mode_var, value='single',
-                   bg='#34495e', fg='white', selectcolor='#2c3e50', state='disabled').pack(side=LEFT, padx=2)
-        Radiobutton(mode_frame, text="多级", variable=self.dir_mode_var, value='multi',
-                   bg='#34495e', fg='white', selectcolor='#2c3e50', state='disabled').pack(side=LEFT, padx=2)
+        top_bar = Frame(parent, bg='#313244')
+        top_bar.pack(fill=X, padx=10, pady=5)
+        
+        # 路径导航条
+        Label(top_bar, text="当前路径:", bg='#313244', fg='#cdd6f4').pack(side=LEFT, padx=5)
+        self.path_entry = Entry(top_bar, width=60, bg='#181825', fg='white', relief=FLAT)
+        self.path_entry.insert(0, "/")
+        self.path_entry.config(state='readonly')
+        self.path_entry.pack(side=LEFT, padx=5, pady=5)
+        
+        Button(top_bar, text="⬆️ 上一级", command=self.go_up, bg='#89b4fa', relief=FLAT).pack(side=LEFT, padx=5)
 
-        tree_frame = LabelFrame(parent, text="目录结构", bg='#34495e', fg='white')
-        tree_frame.pack(fill=BOTH, expand=True, padx=15, pady=8)
+        toolbar = Frame(parent, bg='#313244', height=40)
+        toolbar.pack(fill=X, padx=10, pady=0)
+        
+        btn_set = [
+            ("➕ 文件", self.create_file_async, '#a6e3a1'),
+            ("➕ 目录", self.create_dir_async, '#94e2d5'),
+            ("📝 编辑", self.edit_file, '#89b4fa'),
+            ("🔍 块检查", self.inspect_file_blocks, '#cba6f7'),
+            ("👁️ 查看", self.view_file, '#f9e2af'),
+            ("🗑️ 删除", self.delete_entry, '#f38ba8'),
+            ("🔄 刷新", self.refresh_files, '#b4befe')
+        ]
+        for t, cmd, c in btn_set:
+            Button(toolbar, text=t, command=cmd, bg=c, relief=FLAT, width=10).pack(side=LEFT, padx=5, pady=5)
+        
+        # 修改：增加 'start' (起始块号) 和 'perms' (权限)
+        cols = ('type', 'name', 'size', 'start', 'perms', 'blocks', 'create')
+        self.file_tree = ttk.Treeview(parent, columns=cols, show='headings')
+        self.file_tree.heading('type', text='类型')
+        self.file_tree.heading('name', text='名称')
+        self.file_tree.heading('size', text='大小')
+        self.file_tree.heading('start', text='起始块')  # 新增
+        self.file_tree.heading('perms', text='权限')    # 新增
+        self.file_tree.heading('blocks', text='盘块数')
+        self.file_tree.heading('create', text='创建时间')
+        
+        self.file_tree.column('type', width=50, anchor=CENTER)
+        self.file_tree.column('name', width=200)
+        self.file_tree.column('start', width=80, anchor=CENTER)
+        self.file_tree.column('perms', width=100, anchor=CENTER)
+        
+        self.file_tree.pack(fill=BOTH, expand=True, padx=10)
+        self.file_tree.bind("<Double-1>", self.on_double_click)
 
-        columns = ('size', 'start_block', 'create_time')
-        self.file_tree = ttk.Treeview(tree_frame, columns=columns, show='tree headings')
-        self.file_tree.heading('#0', text='名称')
-        self.file_tree.heading('size', text='大小(B)')
-        self.file_tree.heading('start_block', text='起始块')
-        self.file_tree.heading('create_time', text='创建时间')
-        self.file_tree.column('#0', width=280, anchor=W)
-        self.file_tree.column('size', width=70, anchor=E)
-        self.file_tree.column('start_block', width=80, anchor=CENTER)
-        self.file_tree.column('create_time', width=140, anchor=W)
 
-        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.file_tree.yview)
-        hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.file_tree.xview)
-        self.file_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+    
+    
 
-        self.file_tree.grid(row=0, column=0, sticky='nsew')
-        vsb.grid(row=0, column=1, sticky='ns')
-        hsb.grid(row=1, column=0, sticky='ew')
-        tree_frame.grid_rowconfigure(0, weight=1)
-        tree_frame.grid_columnconfigure(0, weight=1)
+    def _join_path(self, name):
+        if self.current_path == '/':
+            return f"/{name}"
+        return f"{self.current_path}/{name}"
 
-        self.file_tree.tag_configure('dir', background='#34495e', foreground='lightgray')
-        self.file_tree.tag_configure('file', background='', foreground='white')
+    def go_up(self):
+        if self.current_path == '/': return
+        self.current_path = self.current_path.rsplit('/', 1)[0] or '/'
+        if self.current_path == '': self.current_path = '/'
+        self.refresh_files()
+
+    def on_double_click(self, event):
+        item = self.file_tree.selection()
+        if not item: return
+        vals = self.file_tree.item(item[0], "values")
+        if vals[0] == 'DIR':
+            self.current_path = self._join_path(vals[1])
+            self.refresh_files()
+
+    def view_file(self):
+        sel = self.file_tree.selection()
+        if not sel: return
+        vals = self.file_tree.item(sel[0])['values']
+        if vals[0] == 'DIR': return
+        
+        fname = vals[1]
+        full_path = self._join_path(fname)
+        #content = self.filesystem.read_file(full_path)
+        content = self.filesystem.submit(self.filesystem.read_file,full_path)
+        if content is None:
+            messagebox.showerror("错误", "读取文件失败")
+            return
+
+        win = Toplevel(self.root)
+        win.title(f"查看: {fname}")
+        win.geometry("600x450")
+        
+        txt = scrolledtext.ScrolledText(win, bg='#1e1e2e', fg='#cdd6f4', 
+                                       insertbackground='white', font=('Consolas', 11))
+        txt.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        
+        display_text = content.decode('utf-8', errors='replace').rstrip('\x00')
+        txt.insert(END, display_text)
+        txt.config(state=DISABLED)
+
+    def inspect_file_blocks(self):
+        sel = self.file_tree.selection()
+        if not sel: return
+        
+        vals = self.file_tree.item(sel[0])['values']
+        fname = vals[1]
+        is_dir = (vals[0] == 'DIR')
+        full_path = self._join_path(fname)
+        
+        info = self.filesystem.get_file_info(full_path)
+        if not info or not info.get('block_list'):
+            messagebox.showinfo("提示", "未分配盘块")
+            return
+        
+        win = Toplevel(self.root)
+        win.geometry("550x450")
+        win.title(f"块级检查 - {full_path}")
+        win.configure(bg=self.bg_color)
+        
+        Label(win, text=f"📂 路径: {full_path} [{'目录' if is_dir else '文件'}]", bg=self.bg_color, fg='#cba6f7', font=('Arial', 11, 'bold')).pack(pady=10)
+        
+        combo = ttk.Combobox(win, values=[f"逻辑块 {i} (物理#{b})" for i, b in enumerate(info['block_list'])], state="readonly")
+        combo.current(0)
+        combo.pack(pady=5)
+        
+        box = Text(win, height=12, bg='#313244', fg='#a6e3a1', font=('Consolas', 11))
+        box.pack(padx=20, pady=10, fill=X)
+        
+        def do_read():
+            data = self.filesystem.read_file_block(full_path, combo.current())
+            box.delete(1.0, END)
+            if data:
+                if is_dir:
+                    box.insert(END, data.hex())
+                else:
+                    box.insert(END, data.decode('utf-8', errors='replace'))
+        
+        def do_write():
+            if is_dir:
+                messagebox.showwarning("警告", "直接修改目录块极为危险，仅允许读")
+                return
+            d = box.get(1.0, "end-1c").encode('utf-8')
+            if len(d) > 64:
+                messagebox.showwarning("警告", "内容超过64字节，将被截断")
+            if self.filesystem.write_file_block(full_path, combo.current(), d):
+                messagebox.showinfo("成功", "块原地更新成功，缓冲页已变红(脏页)")
+        
+        f = Frame(win, bg=self.bg_color)
+        f.pack(pady=10)
+        Button(f, text="📥 读取当前块", command=do_read, bg='#89b4fa', width=12).pack(side=LEFT, padx=30)
+        Button(f, text="💾 修改并存回", command=do_write, bg='#f38ba8', width=12).pack(side=RIGHT, padx=30)
+        do_read()
+
+    def create_dir_async(self):
+        new_name = simpledialog.askstring("新建目录", "输入目录名称:")
+        if new_name:
+            full_path = self._join_path(new_name)
+            # if self.filesystem.create_directory(full_path):
+            if self.filesystem.submit(self.filesystem.create_directory,full_path):
+                self.refresh_files()
+            else:
+                messagebox.showerror("错误", "创建失败 (可能重名或磁盘满)")
+
+    def create_file_async(self):
+        win = Toplevel(self.root)
+        win.title("新建文件")
+        win.geometry("400x300")
+        win.configure(bg=self.bg_color)
+
+        Label(win, text="文件名:", bg=self.bg_color, fg='#cdd6f4').pack(pady=5)
+        e = Entry(win, bg='#313244', fg='white', insertbackground='white')
+        e.pack(pady=5, padx=20, fill=X)
+        
+        Label(win, text="内容:", bg=self.bg_color, fg='#cdd6f4').pack(pady=5)
+        t = Text(win, height=8, bg='#313244', fg='white', insertbackground='white')
+        t.pack(pady=5, padx=20, fill=BOTH, expand=True)
+
+        def sub():
+            fname = e.get().strip()
+            if not fname: return
+            content = t.get(1.0, "end-1c").encode('utf-8')
+            full_path = self._join_path(fname)
+            # if self.filesystem.create_file(full_path, content):
+            if self.filesystem.submit(self.filesystem.create_file, full_path, content):
+                self.refresh_files()
+                win.destroy()
+            else:
+                messagebox.showerror("错误", "创建失败")
+        Button(win, text="确认创建", command=sub, bg='#a6e3a1').pack(pady=10)
+
+    def edit_file(self):
+        sel = self.file_tree.selection()
+        if not sel: return
+        vals = self.file_tree.item(sel[0])['values']
+        if vals[0] == 'DIR': return
+        
+        fname = vals[1]
+        full_path = self._join_path(fname)
+        
+        self.filesystem.lock_file(full_path)
+        # content = self.filesystem.read_file(full_path)
+        content = self.filesystem.submit(self.filesystem.read_file,full_path)
+        win = Toplevel(self.root)
+        win.title(f"编辑: {fname}")
+        win.geometry("650x500")
+        
+        txt = scrolledtext.ScrolledText(win, bg='#1e1e2e', fg='#cdd6f4', insertbackground='white', font=('Consolas', 11))
+        txt.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        
+        display_text = content.decode('utf-8', errors='replace').rstrip('\x00')
+        txt.insert(END, display_text)
+        
+        def save():
+            new_data = txt.get(1.0, "end-1c").encode('utf-8')
+            # if self.filesystem.write_file(full_path, new_data):
+            if self.filesystem.submit(self.filesystem.write_file,full_path, new_data):
+                self.filesystem.unlock_file(full_path)
+                win.destroy()
+                self.refresh_files()
+            else:
+                messagebox.showerror("错误", "保存失败")
+
+        win.protocol("WM_DELETE_WINDOW", lambda: [self.filesystem.unlock_file(full_path), win.destroy()])
+        Button(win, text="💾 保存并回写磁盘", command=save, bg='#a6e3a1', height=2).pack(fill=X, padx=10, pady=5)
+
+    def delete_entry(self):
+        sel = self.file_tree.selection()
+        if not sel: return
+        vals = self.file_tree.item(sel[0])['values']
+        fname = vals[1]
+        full_path = self._join_path(fname)
+        
+        # if not self.filesystem.delete_file(full_path):
+        if not self.filesystem.submit(self.filesystem.delete_file,full_path):
+            messagebox.showerror("错误", "删除失败 (可能非空目录或被占用)")
+        self.refresh_files()
 
     def create_disk_tab(self, parent):
-        legend_frame = Frame(parent, bg='#34495e')
-        legend_frame.pack(pady=3)
-        Label(legend_frame, text="图例: ", bg='#34495e', fg='white').pack(side=LEFT)
-        for text, color in [
-            ("FAT", '#3498db'),
-            ("目录", '#2ecc71'),
-            ("已用", '#e74c3c'),
-            ("空闲", '#95a5a6'),
-            ("未管理", '#f39c12')
-        ]:
-            Label(legend_frame, text="  ", bg=color, width=2).pack(side=LEFT)
-            Label(legend_frame, text=text, bg='#34495e', fg='white', padx=1).pack(side=LEFT)
+        # 增加图例区域
+        legend_frame = Frame(parent, bg='#313244', height=40)
+        legend_frame.pack(fill=X, padx=20, pady=(20,0))
+        
+        legends = [
+            ("超级块", "#8b5cf6"),
+            ("FAT表", "#3b82f6"),
+            ("根目录", "#10b981"),
+            ("已占用数据", "#ef4444"),
+            ("空闲数据", "#6b7280")
+        ]
+        
+        for name, color in legends:
+            f = Frame(legend_frame, bg='#313244')
+            f.pack(side=LEFT, padx=15, pady=8)
+            Label(f, text="  ", bg=color, width=2).pack(side=LEFT)
+            Label(f, text=f" {name}", bg='#313244', fg='white').pack(side=LEFT)
 
-        block_frame = Frame(parent, bg='#34495e')
-        block_frame.pack(fill=BOTH, expand=True, padx=10, pady=5)
-        self.block_canvas = Canvas(block_frame, bg='#2c3e50')
-        self.block_canvas.pack(fill=BOTH, expand=True)
-        self.block_canvas.bind('<Configure>', self.on_canvas_resize)
+        self.disk_canvas = Canvas(parent, bg='#1e1e2e', highlightthickness=0)
+        self.disk_canvas.pack(fill=BOTH, expand=True, padx=20, pady=20)
 
-    #new
     def create_buffer_tab(self, parent):
-        """🆕 内存缓冲监控页（使用可复用组件）"""
-        # 标题
-        title_frame = Frame(parent, bg='#34495e')
-        title_frame.pack(fill=X, pady=10)
-        
-        Label(title_frame, text="🧠 内存缓冲池监控", 
-              bg='#34495e', fg='white', font=('Arial', 14, 'bold')).pack()
-        Label(title_frame, text="实时显示缓冲池状态 | 绿色=干净页 | 红色=脏页 | LRU置换算法", 
-              bg='#34495e', fg='#95a5a6', font=('Arial', 9)).pack()
-        
-        # 使用可视化组件
-        viz_frame = Frame(parent, bg='#2c3e50', relief=RIDGE, borderwidth=2)
-        viz_frame.pack(fill=BOTH, expand=True, padx=20, pady=10)
-        
-        # 🔧 检查filesystem.buffer是否存在
-        if hasattr(self.filesystem, 'buffer') and self.filesystem.buffer:
-            self.buffer_visualizer = BufferVisualizer(viz_frame, self.filesystem.buffer, page_count=8)
-        else:
-            Label(viz_frame, text="⚠️ 缓冲模块未加载\n请确保buffer/目录存在", 
-                  bg='#2c3e50', fg='#f39c12', font=('Arial', 12)).pack(pady=50)
+        if BUFFER_AVAILABLE:
+            self.buffer_viz = BufferVisualizer(parent, self.filesystem.buffer)
 
-    def on_canvas_resize(self, event=None):
-        self.update_disk_visualization()
+    def create_monitor_tab(self, parent):
+        self.monitor_text = scrolledtext.ScrolledText(parent, state=DISABLED, font=('Consolas', 10))
+        self.monitor_text.pack(fill=BOTH, expand=True, padx=10, pady=10)
 
-    def refresh_all_views(self):
-        self.update_system_info()
-        self.update_file_tree()
-        self.update_disk_visualization()
-        if BUFFER_AVAILABLE and hasattr(self, 'buffer_visualizer'):
-            self.buffer_visualizer.update()
+    def refresh_files(self):
+        for i in self.file_tree.get_children(): self.file_tree.delete(i)
+        
+        self.path_entry.config(state=NORMAL)
+        self.path_entry.delete(0, END)
+        self.path_entry.insert(0, self.current_path)
+        self.path_entry.config(state='readonly')
+        
+        files = self.filesystem.list_files(self.current_path)
+        for f in files:
+            ftype = 'DIR' if f.is_directory else 'FILE'
+            s_blk = f.start_block if f.start_block != -1 else 'N/A'
+            
+            self.file_tree.insert('', END, values=(
+                ftype, f.name, f.size, 
+                s_blk, f.permissions, # 这里插入新字段
+                len(self.filesystem.fat.get_file_blocks(f.start_block)) if f.start_block != -1 else 0,
+                f.create_time.strftime('%H:%M:%S')
+            ))
 
-    def update_system_info(self):
+    def update_disk_viz(self):
+        if not hasattr(self, 'disk_canvas'): return
+        can = self.disk_canvas
+        can.delete('all')
+        w = can.winfo_width()
+        h = can.winfo_height()
+        if w < 10: return
+        
+        cols, rows = 64, 16
+        bw, bh = w/cols, h/rows
+        
+        for i in range(1024):
+            color = '#6b7280' # 空闲
+            if i == 0: color = '#8b5cf6' # 超级块
+            elif SystemConfig.FAT_START <= i < SystemConfig.DIR_START: color = '#3b82f6' # FAT
+            elif SystemConfig.DIR_START <= i < SystemConfig.DATA_START: color = '#10b981' # 根目录區
+            elif self.filesystem.fat._read_entry(i) != SystemConfig.FAT_FREE: color = '#ef4444' # 已占
+            
+            r, c = divmod(i, cols)
+            can.create_rectangle(c*bw, r*bh, (c+1)*bw-1, (r+1)*bh-1, fill=color, outline='#24273a')
+
+    def update_monitor(self):
         info = self.filesystem.get_system_info()
-        info_text = f"""
-磁盘总块数: {info['total_blocks']} × {info['block_size']}B = {info['total_blocks'] * info['block_size']}B
-已管理块数: {info['managed_blocks']}（FAT可追踪）
-未管理块数: {info['unmanaged_blocks']}
-
-区域分布:
-    FAT表: {info['fat_blocks']} 块
-    目录: {info['dir_blocks']} 块
-    数据区: {info['data_blocks']} 块
-
-使用情况:
-    空闲块: {info['free_blocks']}
-    已用数据块: {info['used_blocks']}
-    文件数量: {info['files_count']}
-"""
-#new
-
-        # 🆕 添加缓冲信息
+        txt = f"磁盘利用: {info['used_blocks']}/{info['managed_blocks']} Blocks\n"
+        txt += f"根目录文件: {info['files_count']} (仅根目录)\n"
+        txt += f"当前浏览: {self.current_path}"
         if 'buffer_status' in info:
-            buf = info['buffer_status']
-            stats = buf.get('statistics', {})
-            info_text += f"""
-🆕 内存缓冲:
-    容量: {buf.get('capacity', 0)} 页
-    使用: {buf.get('used', 0)} 页
-    命中率: {stats.get('hit_ratio', '0%')}
-    淘汰次数: {stats.get('evict', 0)}
-"""
-        self.info_text.config(state=NORMAL)
-        self.info_text.delete(1.0, END)
-        self.info_text.insert(END, info_text)
-        self.info_text.config(state=DISABLED)
-        self.dir_mode_var.set(self.filesystem.directory.dir_mode)
+            b = info['buffer_status']['statistics']
+            txt += f"\n\n缓冲命中率: {b['hit_ratio']}\n脏页淘汰: {b['evict']} | 磁盘回写: {b['writeback']}"
+        
+        self.monitor_text.config(state=NORMAL)
+        self.monitor_text.delete(1.0, END)
+        self.monitor_text.insert(END, txt)
+        self.monitor_text.config(state=DISABLED)
 
-    def update_file_tree(self):
-        self.file_tree.delete(*self.file_tree.get_children())
-        fcbs = self.filesystem.directory.list_files()
-        dir_mode = self.filesystem.directory.dir_mode
-
-        if dir_mode == 'single':
-            for fcb in fcbs:
-                ct = fcb.create_time.strftime('%Y-%m-%d %H:%M:%S')
-                self.file_tree.insert('', 'end', text=f"📄 {fcb.name}",
-                                      values=(fcb.size, fcb.start_block, ct),
-                                      tags=('file',))
-        else:
-            tree = defaultdict(list)
-            for fcb in fcbs:
-                parts = [p for p in fcb.name.strip('/').split('/') if p]
-                if not parts:
-                    continue
-                path = ''
-                for i, part in enumerate(parts[:-1]):
-                    next_path = (path + '/' + part).strip('/')
-                    tree[path].append(('dir', part, next_path))
-                    path = next_path
-                tree[path].append(('file', parts[-1], fcb))
-
-            def insert_children(parent_path, parent_id):
-                children = tree.get(parent_path, [])
-                for item_type, name, data in sorted(children, key=lambda x: (x[0] != 'dir', x[1])):
-                    if item_type == 'dir':
-                        node_id = self.file_tree.insert(
-                            parent_id, 'end', text=f"📁 {name}",
-                            values=('', '', ''), tags=('dir',)
-                        )
-                        insert_children(data, node_id)
-                    else:
-                        fcb = data
-                        ct = fcb.create_time.strftime('%Y-%m-%d %H:%M:%S')
-                        self.file_tree.insert(
-                            parent_id, 'end', text=f"📄 {name}",
-                            values=(fcb.size, fcb.start_block, ct),
-                            tags=('file',)
-                        )
-
-            insert_children('', '')
-
-    def update_disk_visualization(self):
-        canvas = self.block_canvas
-        canvas.delete('all')
-        cw = max(640, canvas.winfo_width())
-        ch = max(320, canvas.winfo_height())
-        total = 1024
-        blocks_per_row, rows = 64, 16
-        bw, bh = cw // blocks_per_row, ch // rows
-
-        status = ['free'] * total
-        status[0] = status[1] = 'reserved'
-        fat_start = self.filesystem.fat.fat_start_block
-        fat_end = min(fat_start + self.filesystem.fat.fat_blocks - 1, 1023)
-        for i in range(fat_start, fat_end + 1): status[i] = 'fat'
-        dir_start = self.filesystem.directory.dir_start_block
-        dir_end = min(dir_start + self.filesystem.directory.dir_blocks - 1, 1023)
-        for i in range(dir_start, dir_end + 1): status[i] = 'dir'
-        data_start = self.filesystem.data_start_block
-        max_managed = min(self.filesystem.fat.total_fat_entries, 1024)
-        for i in range(data_start, max_managed):
-            if self.filesystem.fat._read_fat_entry(i) != 0xFFFFFFFF:
-                status[i] = 'used'
-        for i in range(max_managed, 1024):
-            status[i] = 'unmanaged'
-
-        color_map = {'reserved': '#8e44ad', 'fat': '#3498db', 'dir': '#2ecc71',
-                     'used': '#e74c3c', 'free': '#95a5a6', 'unmanaged': '#f39c12'}
-        for idx in range(1024):
-            r, c = divmod(idx, 64)
-            x1, y1 = c * bw, r * bh
-            x2, y2 = x1 + bw, y1 + bh
-            color = color_map.get(status[idx], '#95a5a6')
-            canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline='#34495e', width=1)
-    # buffer
     def auto_refresh(self):
-        """自动刷新"""
-        self.refresh_all_views()
-        self.root.after(1500, self.auto_refresh)
-    #buffer
+        """自动刷新定时器"""
+        try:
+            info = self.filesystem.get_system_info()
+            self.stat_labels["💾 磁盘使用"].config(text=f"{(info['used_blocks']/1024*100):.1f}%")
+            self.stat_labels["📁 根目录文件"].config(text=str(info['files_count']))
+            
+            if hasattr(self, 'buffer_viz'):
+                self.buffer_viz.update()
+            
+            if 'buffer_status' in info:
+                self.stat_labels["🧠 命中率"].config(text=info['buffer_status']['statistics']['hit_ratio'])
+                
+            self.update_disk_viz()
+            self.update_monitor()
+        except Exception as e:
+            print(f"Refresh error: {e}")
+        
+        self.root.after(2000, self.auto_refresh)
+
     def on_closing(self):
-        """窗口关闭"""
+        """退出前强制将缓冲脏页同步至磁盘"""
         self.filesystem.shutdown()
         self.root.destroy()
 
 if __name__ == "__main__":
     root = Tk()
-    app = FATFileSystemSimulator(root)
+    app = OSCourseDesignGUI(root)
     root.mainloop()

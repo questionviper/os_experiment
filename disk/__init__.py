@@ -1,3 +1,8 @@
-from .sim_disk_compact_v2 import FileSystem
+"""
+磁盘模块
+"""
 
-_all_ = ["FileSystem"]
+from .filesystem import FileSystem
+from .fcb import FCB
+
+__all__ = ['FileSystem', 'FCB']
