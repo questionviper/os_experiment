@@ -1,0 +1,8 @@
+2026-01-01 23:50:12,709 [INFO] FileSystem: 🚀 内存映射(mmap)建立成功
+2026-01-01 23:50:12,709 [INFO] FileSystem: 💾 磁盘管理器初始化: os_course_disk.img [1024块]
+2026-01-01 23:50:12,712 [INFO] FileSystem: 初始化FAT表...
+2026-01-01 23:50:12,717 [INFO] FileSystem: FAT表初始化完成
+2026-01-01 23:50:12,718 [INFO] FileSystem: FAT表管理器初始化完成
+2026-01-01 23:50:12,718 [INFO] FileSystem: 目录管理器初始化完成
+2026-01-01 23:50:12,729 [INFO] FileSystem: 系统块已标记
+2026-01-02 00:41:52,916 [INFO] FileSystem: ✅ 磁盘管理器已关闭

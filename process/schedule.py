@@ -1,7 +1,7 @@
 import threading
 import time
 from queue import Queue
-
+from utils import logger
 class TaskScheduler:
     """
     (2) 进程通信：Queue
@@ -37,7 +37,7 @@ class TaskScheduler:
         with self.io_semaphore:  # 信号量互斥控制
             try:
                 # 模拟系统调度延迟
-                print(f"--- 线程 {threading.current_thread().name} 开始处理任务 ---")
+                logger.info(f"--- 线程 {threading.current_thread().name} 开始处理任务 ---")
                 time.sleep(0.5)
                 
                 # 执行原有的函数逻辑
