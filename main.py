@@ -338,8 +338,8 @@ class OSCourseDesignGUI:
         self.path_entry.delete(0, END)
         self.path_entry.insert(0, self.current_path)
         self.path_entry.config(state='readonly')
-        
-        files = self.filesystem.list_files(self.current_path)
+        #list files to submit
+        files = self.filesystem.submit(self.filesystem.list_files(self.current_path))
         for f in files:
             ftype = 'DIR' if f.is_directory else 'FILE'
             s_blk = f.start_block if f.start_block != -1 else 'N/A'
