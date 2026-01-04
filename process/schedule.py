@@ -8,7 +8,7 @@ class TaskScheduler:
     (3) 互斥控制：Semaphore (信号量)
     (4) 进程调度：模拟 RR (时间片轮转)
     """
-    def __init__(self, max_io_threads=2):
+    def __init__(self, max_io_threads=1):
         self.task_queue = Queue()
         # 信号量：控制最大并发IO数，模拟磁盘物理限制
         self.io_semaphore = threading.Semaphore(max_io_threads)
